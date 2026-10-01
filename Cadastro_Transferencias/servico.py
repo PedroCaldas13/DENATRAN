@@ -2,6 +2,7 @@
 import paho.mqtt.client as mqtt
 import sqlite3
 import os
+import json
 
 
 #configuracao
@@ -9,9 +10,13 @@ BROKER_HOST = os.environ.get("BROKER_HOST","localhost")
 BROKER_PORT = int(os.environ.get("BROKER_PORT","1883"))
 CLIENT_ID = os.environ.get("CLIENT_ID","svc-cadastro")
 
+#constantes que ele assina
 TOPICO_CADASTRAR =  "denatran/cmd/condutor/cadastrar"
 TOPICO_TRANSFERIR = "denatran/cmd/veiculo/transferir"
 TOPICO_EMPLACADO =  "denatran/evt/veiculo/emplacado"
+#constantes que ele publica
+TOPICO_EVT_CONDUTOR = "denatran/evt/condutor/cadastrado"
+TOPICO_EVT_POSSE = "denatran/evt/posse/alterada"
 
 CAMINHO_BANCO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cadastro.db")
 
@@ -36,6 +41,30 @@ def gravar_posse(placa,cpf): #deve ficar assim?
     cur.execute("INSERT OR REPLACE INTO posses (placa,cpf) VALUES (?,?)",(placa,cpf))
     con.commit()
 
+def tratar_cadastrar(client,dados):
+    cpf = dados.get("cpf")
+    nome = dados.get("nome")
+    if not cpf or not nome:
+        print("Dados invalidos")
+        return
+    try:
+        inserir_condutor(cpf,nome)
+    except sqlite3.IntegrityError:
+        print("Cpf ja cadastrado")
+        return
+
+    evento = {"cpf": cpf, "nome": nome}
+    client.publish(TOPICO_EVT_CONDUTOR, json.dumps(evento),qos=1)
+    print(f"Condutor {cpf} cadastrado")
+
+#deve ser implementada
+def tratar_transferir():
+    print("implementar")
+#deve ser implementada
+def tratar_emplacado():
+    print("implementar")
+
+
 
 #TRATAMENTO DAS MENSAGENS: 5.2
 #funcao connect, quando e revebe uma connack message from the server
@@ -45,15 +74,33 @@ def on_connect(client, userdata, flags, reason_code, properties):
         print("Erro ? ", reason_code)
         return
 
-    print("Conectado ? ", flags.session_present)
+    print("Conectado. Sessao anterior: ", flags.session_present)
     client.subscribe(TOPICO_CADASTRAR, qos=1)
     client.subscribe(TOPICO_TRANSFERIR, qos=1)
     client.subscribe(TOPICO_EMPLACADO, qos=1)
 
-
+ROTAS = {
+    TOPICO_CADASTRAR: tratar_cadastrar,
+    TOPICO_TRANSFERIR: tratar_transferir,
+    TOPICO_EMPLACADO: tratar_emplacado,
+}
 def on_message(cliente,userdata,message): #é o callback de quando ele recebe uma publish message
     print(message.topic)
     print(message.payload.decode("utf-8"))
+    try:
+        dados = json.loads(message.payload.decode("utf-8"))
+    except json.decoder.JSONDecodeError:
+        print(f"JSON invalido em {message.topic}")
+        return
+    if not isinstance(dados,dict):
+        print(f"Formato inválido em {message.topic}")
+        return
+    funcao = ROTAS.get(message.topic)
+    if funcao is None:
+        print("topico sem tratamento")
+        return
+    funcao(cliente,dados)
+
 
 
 
