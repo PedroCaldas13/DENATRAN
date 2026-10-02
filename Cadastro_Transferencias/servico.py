@@ -123,7 +123,7 @@ def tratar_emplacado(client,dados):
         print("DADOS_INVALIDOS")
         return None
     gravar_posse(placa,cpf)
-    publicar_posse(client,placa,None,cpf,"Emplacamento")
+    publicar_posse(client,placa,None,cpf,"emplacamento")
     return None
 
 
