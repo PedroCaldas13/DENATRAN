@@ -1,5 +1,7 @@
 
 import paho.mqtt.client as mqtt
+from paho.mqtt.properties import Properties
+from paho.mqtt.packettypes import PacketTypes
 import sqlite3
 import os
 import json
@@ -41,28 +43,48 @@ def gravar_posse(placa,cpf): #deve ficar assim?
     cur.execute("INSERT OR REPLACE INTO posses (placa,cpf) VALUES (?,?)",(placa,cpf))
     con.commit()
 
+def envelope(status,codigo,mensagem,dados):
+    dicionario = {"status" : status, "codigo" : codigo, "mensagem" : mensagem,"dados" : dados }
+    return dicionario
+
+def responder(client, message, resposta):
+    topico_resposta = getattr(message.properties, "ResponseTopic", None)
+    if topico_resposta is None:
+        return
+
+    props = Properties(PacketTypes.PUBLISH)
+    correlacao = getattr(message.properties, "CorrelationData", None)
+    if correlacao is not None:
+        props.CorrelationData = correlacao
+
+    client.publish(topico_resposta, json.dumps(resposta), qos=1, properties=props)
+
+
 def tratar_cadastrar(client,dados):
     cpf = dados.get("cpf")
     nome = dados.get("nome")
     if not cpf or not nome:
         print("Dados invalidos")
-        return
+        return envelope("erro","DADOS_INVALIDOS","Nome e CPF sao obrigatorios",None)
     try:
         inserir_condutor(cpf,nome)
     except sqlite3.IntegrityError:
         print("Cpf ja cadastrado")
-        return
+        return envelope("erro","CPF_JA_CADASTRADO",f"CPF {cpf} já cadastrado",None)
 
     evento = {"cpf": cpf, "nome": nome}
     client.publish(TOPICO_EVT_CONDUTOR, json.dumps(evento),qos=1)
     print(f"Condutor {cpf} cadastrado")
+    return envelope("Ok",None,f"Condutor {cpf} cadastrado",evento)
 
 #deve ser implementada
-def tratar_transferir():
+def tratar_transferir(client,dados):
     print("implementar")
 #deve ser implementada
-def tratar_emplacado():
+def tratar_emplacado(client,dados):
     print("implementar")
+
+
 
 
 
@@ -99,7 +121,9 @@ def on_message(cliente,userdata,message): #é o callback de quando ele recebe um
     if funcao is None:
         print("topico sem tratamento")
         return
-    funcao(cliente,dados)
+    resposta = funcao(cliente,dados)
+    if resposta is not None:
+        responder(cliente,message,resposta)
 
 
 
