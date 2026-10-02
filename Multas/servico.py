@@ -27,7 +27,7 @@ TOPICO_POSSE_ALTERADA = "denatran/evt/posse/alterada"
 
 # no Docker, DB_DIR aponta para um volume; rodando local, o banco fica na pasta do serviço
 DB_DIR = os.environ.get("DB_DIR", os.path.dirname(os.path.abspath(__file__)))
-CAMINHO_BANCO = os.path.join(DB_DIR, "cadastro.db")
+CAMINHO_BANCO = os.path.join(DB_DIR, "multas.db")
 
 con = sqlite3.connect(CAMINHO_BANCO)
 cur = con.cursor()

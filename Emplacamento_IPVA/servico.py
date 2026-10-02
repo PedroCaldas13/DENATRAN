@@ -25,7 +25,7 @@ ALIQUOTA_IPVA = 0.02
 
 # no Docker, DB_DIR aponta para um volume; rodando local, o banco fica na pasta do serviço
 DB_DIR = os.environ.get("DB_DIR", os.path.dirname(os.path.abspath(__file__)))
-CAMINHO_BANCO = os.path.join(DB_DIR, "cadastro.db")
+CAMINHO_BANCO = os.path.join(DB_DIR, "emplacamento.db")
 
 
 
