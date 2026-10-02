@@ -5,9 +5,69 @@ services:
       - "1883:1883"
     volumes:
       - ./broker:/mosquitto/config
-      - dados_broker:/mosquitto/data #sem ./ ele nao tem caminho
+      - dados_broker:/mosquitto/data
+    healthcheck:
+      # pronto quando aceita uma assinatura e entrega o tópico retido de versão
+      test: ["CMD", "mosquitto_sub", "-t", "$$SYS/broker/version", "-C", "1", "-W", "3"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
+  cadastro:
+    build: ./Cadastro_Transferencias
+    environment:
+      BROKER_HOST: mosquitto
+    volumes:
+      - dados_cadastro:/dados
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: on-failure
 
+  emplacamento:
+    build: ./Emplacamento_IPVA
+    environment:
+      BROKER_HOST: mosquitto
+    volumes:
+      - dados_emplacamento:/dados
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: on-failure
+
+  multas:
+    build: ./Multas
+    environment:
+      BROKER_HOST: mosquitto
+    volumes:
+      - dados_multas:/dados
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    restart: on-failure
+
+  # não sobe com "docker compose up"; é executado sob demanda:
+  #   docker compose run --rm cliente           → menu
+  #   docker compose run --rm cliente --teste   → testes automáticos
+  cliente:
+    build: ./Cliente
+    environment:
+      BROKER_HOST: mosquitto
+    stdin_open: true
+    tty: true
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      cadastro:
+        condition: service_started
+      emplacamento:
+        condition: service_started
+      multas:
+        condition: service_started
+    profiles: ["cliente"]
 
 volumes:
-  dados_broker: #vai pegar a config padrao
+  dados_broker:
+  dados_cadastro:
+  dados_emplacamento:
+  dados_multas:

@@ -23,7 +23,9 @@ TOPICO_EVT_EMPLACADO = "denatran/evt/veiculo/emplacado"
 
 ALIQUOTA_IPVA = 0.02
 
-CAMINHO_BANCO = os.path.join(os.path.dirname(os.path.abspath(__file__)), "emplacamento.db")
+# no Docker, DB_DIR aponta para um volume; rodando local, o banco fica na pasta do serviço
+DB_DIR = os.environ.get("DB_DIR", os.path.dirname(os.path.abspath(__file__)))
+CAMINHO_BANCO = os.path.join(DB_DIR, "cadastro.db")
 
 
 
@@ -222,5 +224,8 @@ if __name__ == "__main__":
     mqttc = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=CLIENT_ID, protocol=mqtt.MQTTv5)
     mqttc.on_connect = on_connect
     mqttc.on_message = on_message
-    mqttc.connect(BROKER_HOST, BROKER_PORT, clean_start=False)
+    # sessão persistente: o broker guarda as mensagens por até 1 h enquanto o serviço estiver fora
+    props_conexao = Properties(PacketTypes.CONNECT)
+    props_conexao.SessionExpiryInterval = 3600
+    mqttc.connect(BROKER_HOST, BROKER_PORT, clean_start=False, properties=props_conexao)
     mqttc.loop_forever()
