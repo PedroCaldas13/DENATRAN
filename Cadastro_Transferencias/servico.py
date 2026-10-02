@@ -38,6 +38,9 @@ def inserir_condutor(cpf,nome):
 def buscar_condutor(cpf):
     cur.execute("SELECT * FROM condutores WHERE cpf= ?",(cpf,))
     return cur.fetchone()
+def buscar_posse(placa):
+    cur.execute("SELECT * FROM posses WHERE placa= ?",(placa,))
+    return cur.fetchone()
 
 def gravar_posse(placa,cpf): #deve ficar assim?
     cur.execute("INSERT OR REPLACE INTO posses (placa,cpf) VALUES (?,?)",(placa,cpf))
@@ -60,6 +63,17 @@ def responder(client, message, resposta):
     client.publish(topico_resposta, json.dumps(resposta), qos=1, properties=props)
 
 
+def publicar_posse(client, placa, cpf_anterior, cpf_novo, motivo):
+    evento = {
+        "placa": placa,
+        "cpf_anterior": cpf_anterior,
+        "cpf_novo": cpf_novo,
+        "motivo": motivo,
+    }
+    client.publish(TOPICO_EVT_POSSE, json.dumps(evento), qos=1)
+
+
+
 def tratar_cadastrar(client,dados):
     cpf = dados.get("cpf")
     nome = dados.get("nome")
@@ -75,14 +89,43 @@ def tratar_cadastrar(client,dados):
     evento = {"cpf": cpf, "nome": nome}
     client.publish(TOPICO_EVT_CONDUTOR, json.dumps(evento),qos=1)
     print(f"Condutor {cpf} cadastrado")
-    return envelope("Ok",None,f"Condutor {cpf} cadastrado",evento)
+    return envelope("ok",None,f"Condutor {cpf} cadastrado",evento)
+
 
 #deve ser implementada
-def tratar_transferir(client,dados):
-    print("implementar")
-#deve ser implementada
+def tratar_transferir(client, dados):
+    placa = dados.get("placa")
+    cpf_novo = dados.get("cpf_novo")
+    if not placa or not cpf_novo:
+        return envelope("erro", "DADOS_INVALIDOS", "Placa e CPF novo são obrigatórios", None)
+
+    posse = buscar_posse(placa)
+    if posse is None:
+        return envelope("erro", "PLACA_NAO_ENCONTRADA", f"placa {placa} não cadastrado", None)
+
+    condutor = buscar_condutor(cpf_novo)
+    if condutor is None:
+        return envelope("erro", "CPF_NAO_ENCONTRADO", f"CPF {cpf_novo} não cadastrado", None)
+
+    cpf_anterior = posse[1] #posicao 1 da tupla (placa,cpf)
+    gravar_posse(placa, cpf_novo)
+    publicar_posse(client, placa, cpf_anterior, cpf_novo, "transferencia")
+    print(f"Placa {placa}: {cpf_anterior} -> {cpf_novo}")
+    return envelope("ok", None,f"Placa {placa} transferida para o CPF {cpf_novo}", {"placa": placa, "cpf_anterior": cpf_anterior, "cpf_novo": cpf_novo})
+
+
+
+
 def tratar_emplacado(client,dados):
-    print("implementar")
+    placa = dados.get("placa")
+    cpf = dados.get("cpf")
+    if not placa or not cpf:
+        print("DADOS_INVALIDOS")
+        return None
+    gravar_posse(placa,cpf)
+    publicar_posse(client,placa,None,cpf,"Emplacamento")
+    return None
+
 
 
 
